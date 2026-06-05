@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VISAGE — AI Makeup Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --cream: #FAF7F2; --warm-white: #FDF9F5; --blush: #E8C4B8;
+    --blush-deep: #C9896F; --rose: #9E4B35; --rose-dark: #5C2518;
+    --mocha: #3A2218; --mocha-mid: #6B3D28; --gold: #C5A46A;
+    --gold-light: #E8D5B0; --sage: #7A8C72; --petal: #F2E0D8;
+    --border: rgba(58,34,24,0.12); --border-mid: rgba(58,34,24,0.22);
+  }
+  body { font-family: 'DM Mono', monospace; background: var(--cream); color: var(--mocha); min-height: 100vh; overflow-x: hidden; }
+  body::before { content: ''; position: fixed; top: 0; right: 0; width: 420px; height: 420px; background: radial-gradient(circle, rgba(232,196,184,0.35) 0%, transparent 70%); pointer-events: none; z-index: 0; }
+  body::after { content: ''; position: fixed; bottom: 0; left: 0; width: 320px; height: 320px; background: radial-gradient(circle, rgba(197,164,106,0.2) 0%, transparent 70%); pointer-events: none; z-index: 0; }
+  .container { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 0 2rem 4rem; }
+  header { text-align: center; padding: 4rem 0 3rem; border-bottom: 0.5px solid var(--border); margin-bottom: 3rem; }
+  .logo { font-family: 'Cormorant Garamond', serif; font-size: clamp(3.5rem, 8vw, 5.5rem); font-weight: 300; letter-spacing: 0.35em; color: var(--mocha); line-height: 1; margin-bottom: 0.5rem; }
+  .tagline { font-size: 0.65rem; letter-spacing: 0.3em; color: var(--blush-deep); text-transform: uppercase; }
+  .ornament { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.5rem; color: var(--gold); font-size: 0.7rem; letter-spacing: 0.2em; }
+  .ornament::before, .ornament::after { content: ''; height: 0.5px; width: 60px; background: var(--gold); opacity: 0.6; }
+  .upload-section { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2.5rem; align-items: start; }
+  @media (max-width: 620px) { .upload-section { grid-template-columns: 1fr; } }
+  .upload-zone { border: 1px dashed var(--blush-deep); border-radius: 2px; background: var(--warm-white); padding: 2.5rem 1.5rem; text-align: center; cursor: pointer; transition: all 0.3s ease; position: relative; overflow: hidden; aspect-ratio: 3/4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--rose); background: var(--petal); }
+  .upload-zone.has-image { border-style: solid; border-color: var(--gold); padding: 0; }
+  .upload-zone img { width: 100%; height: 100%; object-fit: cover; display: none; border-radius: 1px; }
+  .upload-zone.has-image img { display: block; }
+  .upload-zone.has-image .upload-prompt { display: none; }
+  .upload-icon { width: 48px; height: 48px; border: 1px solid var(--blush-deep); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; color: var(--blush-deep); }
+  .upload-icon svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+  .upload-text { font-size: 0.65rem; letter-spacing: 0.15em; color: var(--mocha-mid); text-transform: uppercase; line-height: 1.6; }
+  .upload-sub { font-size: 0.58rem; color: var(--blush-deep); letter-spacing: 0.1em; margin-top: -0.5rem; }
+  input[type="file"] { display: none; }
+  .controls-panel { display: flex; flex-direction: column; gap: 1.5rem; }
+  .panel-label { font-size: 0.58rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--blush-deep); margin-bottom: 0.6rem; }
+  .skin-tone-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .tone-swatch { aspect-ratio: 1; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.2s, border-color 0.2s; }
+  .tone-swatch:hover { transform: scale(1.15); }
+  .tone-swatch.selected { border-color: var(--gold); transform: scale(1.15); }
+  .style-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 5px 12px; border: 0.5px solid var(--border-mid); border-radius: 20px; background: transparent; color: var(--mocha); cursor: pointer; transition: all 0.2s; font-family: 'DM Mono', monospace; }
+  .chip:hover { border-color: var(--rose); color: var(--rose); }
+  .chip.selected { background: var(--mocha); color: var(--cream); border-color: var(--mocha); }
+  .analyze-btn { width: 100%; padding: 1rem 2rem; background: var(--mocha); color: var(--cream); border: none; border-radius: 1px; font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.3em; text-transform: uppercase; cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden; }
+  .analyze-btn::after { content: ''; position: absolute; inset: 0; background: var(--rose); transform: translateX(-100%); transition: transform 0.4s ease; z-index: 0; }
+  .analyze-btn:hover::after { transform: translateX(0); }
+  .analyze-btn span { position: relative; z-index: 1; }
+  .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .analyze-btn:disabled::after { display: none; }
+  .results-section { display: none; animation: fadeUp 0.6s ease forwards; }
+  .results-section.visible { display: block; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .results-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 0.5px solid var(--border); }
+  .results-title { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 300; font-style: italic; color: var(--mocha); }
+  .results-subtitle { font-size: 0.6rem; letter-spacing: 0.2em; color: var(--blush-deep); text-transform: uppercase; }
+  .tip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 2rem; }
+  @media (max-width: 540px) { .tip-grid { grid-template-columns: 1fr; } }
+  .tip-card { background: var(--warm-white); border: 0.5px solid var(--border); border-radius: 1px; padding: 1.5rem; position: relative; overflow: hidden; transition: border-color 0.2s; }
+  .tip-card:hover { border-color: var(--gold); }
+  .tip-card::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--gold); }
+  .tip-category { font-size: 0.55rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--blush-deep); margin-bottom: 0.6rem; }
+  .tip-heading { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 400; color: var(--mocha); margin-bottom: 0.75rem; line-height: 1.2; }
+  .tip-body { font-size: 0.7rem; line-height: 1.75; color: var(--mocha-mid); }
+  .color-swatches-row { display: flex; gap: 6px; margin-top: 1rem; flex-wrap: wrap; }
+  .color-pill { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border: 0.5px solid var(--border); border-radius: 20px; font-size: 0.58rem; letter-spacing: 0.1em; color: var(--mocha); }
+  .color-dot { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
+  .face-analysis-badge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--petal); border: 0.5px solid var(--blush); border-radius: 2px; padding: 0.6rem 1rem; margin-bottom: 1.75rem; font-size: 0.62rem; letter-spacing: 0.12em; color: var(--rose-dark); }
+  .face-shape-pill { background: var(--rose); color: var(--cream); padding: 2px 10px; border-radius: 20px; font-size: 0.58rem; letter-spacing: 0.15em; text-transform: uppercase; }
+  .full-width-tip { grid-column: 1 / -1; }
+  .loading-overlay { display: none; text-align: center; padding: 4rem 2rem; }
+  .loading-overlay.visible { display: block; }
+  .loading-ring { width: 60px; height: 60px; border: 1px solid var(--border); border-top-color: var(--rose); border-radius: 50%; animation: spin 1.2s linear infinite; margin: 0 auto 1.5rem; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 0.65rem; letter-spacing: 0.2em; color: var(--blush-deep); text-transform: uppercase; }
+  .loading-steps { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .loading-step { font-size: 0.6rem; letter-spacing: 0.1em; color: var(--mocha-mid); opacity: 0; transition: opacity 0.5s; }
+  .loading-step.show { opacity: 1; }
+  .error-msg { display: none; background: #FFF5F5; border: 0.5px solid #F0A0A0; border-radius: 1px; padding: 1rem 1.25rem; font-size: 0.68rem; color: var(--rose-dark); letter-spacing: 0.05em; line-height: 1.6; margin-top: 1rem; }
+  .error-msg.visible { display: block; }
+
+  /* ── Try-On Section ── */
+  .tryon-section { margin-top: 3rem; border-top: 0.5px solid var(--border); padding-top: 2.5rem; }
+  .tryon-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 1.5rem; }
+  .tryon-layout { display: grid; grid-template-columns: 1fr 260px; gap: 2rem; align-items: start; }
+  @media (max-width: 640px) { .tryon-layout { grid-template-columns: 1fr; } }
+  .canvas-wrap { position: relative; background: #000; border-radius: 2px; overflow: hidden; line-height: 0; }
+  .canvas-wrap canvas { display: block; width: 100%; height: auto; }
+  #overlayCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  .tryon-controls { display: flex; flex-direction: column; gap: 1.25rem; }
+  .slider-row { display: flex; flex-direction: column; gap: 6px; }
+  .slider-label { font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--blush-deep); display: flex; justify-content: space-between; }
+  input[type=range] { width: 100%; accent-color: var(--rose); cursor: pointer; }
+  .tryon-toggle-group { display: flex; flex-direction: column; gap: 6px; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 0.5px solid var(--border); }
+  .toggle-name { font-size: 0.62rem; letter-spacing: 0.1em; color: var(--mocha); }
+  .toggle-switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-knob { position: absolute; inset: 0; background: var(--border-mid); border-radius: 20px; cursor: pointer; transition: background 0.2s; }
+  .toggle-knob::before { content: ''; position: absolute; left: 3px; top: 3px; width: 14px; height: 14px; background: white; border-radius: 50%; transition: transform 0.2s; }
+  .toggle-switch input:checked + .toggle-knob { background: var(--rose); }
+  .toggle-switch input:checked + .toggle-knob::before { transform: translateX(16px); }
+  .color-selector { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+  .cs-dot { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.15s, border-color 0.15s; flex-shrink:0; }
+  .cs-dot:hover { transform: scale(1.2); }
+  .cs-dot.active { border-color: var(--mocha); transform: scale(1.15); }
+  .color-section-label { font-size:0.52rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--blush-deep); margin:6px 0 4px; }
+  .color-group { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:4px; }
+  .custom-picker-row { display:flex; align-items:center; gap:8px; margin-top:6px; }
+  .custom-picker-row label { font-size:0.58rem; letter-spacing:0.1em; color:var(--mocha-mid); }
+  .custom-picker-row input[type=color] { width:28px; height:28px; border-radius:50%; border:1.5px solid var(--border-mid); cursor:pointer; padding:1px; background:none; }
+  .tryon-btn { width: 100%; padding: 0.85rem; background: var(--mocha); color: var(--cream); border: none; border-radius: 1px; font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.25em; text-transform: uppercase; cursor: pointer; transition: background 0.2s; }
+  .tryon-btn:hover { background: var(--rose); }
+  .tryon-btn.secondary { background: transparent; border: 0.5px solid var(--border-mid); color: var(--mocha); margin-top: 4px; }
+  .tryon-btn.secondary:hover { border-color: var(--rose); color: var(--rose); background: transparent; }
+  .tryon-status { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--blush-deep); text-align: center; min-height: 1.2em; }
+  footer { text-align: center; padding: 2rem 0 1rem; border-top: 0.5px solid var(--border); margin-top: 4rem; font-size: 0.58rem; letter-spacing: 0.15em; color: var(--blush-deep); text-transform: uppercase; }
+
+  /* ── Celebrity Bottom Section ── */
+  .celeb-bottom-wrap { border-top: 0.5px solid var(--border); padding-top: 3rem; }
+  .celeb-bottom-header { text-align: center; margin-bottom: 2.5rem; }
+  .celeb-star-row { color: var(--gold); letter-spacing: 0.5em; font-size: 0.7rem; margin-bottom: 1rem; }
+  .celeb-bottom-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 300; letter-spacing: 0.12em; color: var(--mocha); margin-bottom: 0.5rem; }
+  .celeb-bottom-sub { font-size: 0.65rem; letter-spacing: 0.18em; color: var(--blush-deep); text-transform: uppercase; }
+  .celeb-bottom-card { display: grid; grid-template-columns: 240px 1fr; gap: 3rem; align-items: start; background: var(--warm-white); border: 0.5px solid var(--border); padding: 2rem; margin-bottom: 2rem; position: relative; overflow: hidden; }
+  .celeb-bottom-card::after { content: ''; position: absolute; top:-60px; right:-60px; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle, rgba(232,196,184,0.3) 0%, transparent 70%); pointer-events:none; }
+  @media(max-width:620px) { .celeb-bottom-card { grid-template-columns:1fr; gap:1.5rem; } }
+  .celeb-bottom-photo-frame { width: 100%; aspect-ratio: 3/4; background: var(--petal); border: 0.5px solid var(--border); overflow: hidden; position: relative; border-radius: 2px; }
+  .celeb-placeholder-icon { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:3rem; color:var(--blush); }
+  .celeb-bottom-name { font-family: 'Cormorant Garamond', serif; font-size: 1.4rem; font-weight: 400; color: var(--mocha); text-align: center; margin-top: 0.75rem; letter-spacing: 0.05em; }
+  .celeb-bottom-tag { font-size: 0.52rem; letter-spacing: 0.35em; text-transform: uppercase; color: var(--rose); margin-bottom: 0.6rem; }
+  .celeb-match-reason { font-size: 0.75rem; line-height: 1.8; color: var(--mocha-mid); font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 1.05rem; }
+  .celeb-bottom-divider { height: 0.5px; background: var(--border); margin: 1.25rem 0; }
+  .celeb-steal-text { font-size: 0.7rem; line-height: 1.75; color: var(--mocha-mid); margin-bottom: 1rem; }
+  .celeb-inspo-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 0.5rem; }
+  .celeb-chip { padding: 5px 14px; border: 0.5px solid var(--rose); border-radius: 20px; font-size: 0.58rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--rose); }
+  .celeb-bottom-cta { text-align: center; padding: 2rem; background: var(--mocha); border-radius: 1px; }
+  .celeb-cta-text { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; font-weight: 300; color: var(--cream); margin-bottom: 0.4rem; letter-spacing: 0.1em; }
+  .celeb-cta-sub { font-size: 0.6rem; letter-spacing: 0.15em; color: var(--blush); text-transform: uppercase; }
+
+  /* ── Feature Analysis & Celebrity Card ── */
+  .feature-analysis { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem; }
+  @media (max-width:560px) { .feature-analysis { grid-template-columns:1fr; } }
+  .feature-card { background: var(--warm-white); border: 0.5px solid var(--border); border-radius: 1px; padding: 1.25rem 1.5rem; position:relative; }
+  .feature-card::before { content:''; position:absolute; top:0;left:0; width:3px; height:100%; background:var(--gold); }
+  .feature-card.full { grid-column:1/-1; }
+  .feature-card.attractive { background:var(--petal); border-color:var(--blush); }
+  .feature-card.attractive::before { background:var(--rose); }
+  .feature-tag { font-size:0.52rem; letter-spacing:0.28em; text-transform:uppercase; color:var(--blush-deep); margin-bottom:0.5rem; }
+  .feature-title { font-family:'Cormorant Garamond',serif; font-size:1.15rem; font-weight:400; color:var(--mocha); margin-bottom:0.5rem; }
+  .feature-body { font-size:0.68rem; line-height:1.75; color:var(--mocha-mid); }
+  .detection-pills { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:1.5rem; }
+  .detection-pill { display:flex; align-items:center; gap:6px; padding:5px 12px; border:0.5px solid var(--border-mid); border-radius:20px; font-size:0.58rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--mocha); background:var(--warm-white); }
+  .detection-pill span.label { color:var(--blush-deep); margin-right:2px; }
+  /* Celebrity Card */
+  .celebrity-section { margin: 2rem 0; padding: 1.5rem; background:var(--warm-white); border:0.5px solid var(--border); border-radius:1px; display:grid; grid-template-columns:auto 1fr; gap:1.5rem; align-items:center; }
+  @media(max-width:500px){ .celebrity-section { grid-template-columns:1fr; } }
+  .celebrity-photo { width:90px; height:90px; border-radius:50%; object-fit:cover; border:2px solid var(--gold); flex-shrink:0; background:var(--petal); display:flex; align-items:center; justify-content:center; font-size:2rem; }
+  .celebrity-photo-wrap { position:relative; }
+  .celebrity-info { }
+  .celebrity-label { font-size:0.52rem; letter-spacing:0.28em; text-transform:uppercase; color:var(--blush-deep); margin-bottom:0.4rem; }
+  .celebrity-name { font-family:'Cormorant Garamond',serif; font-size:1.6rem; font-weight:300; color:var(--mocha); margin-bottom:0.4rem; line-height:1.1; }
+  .celebrity-reason { font-size:0.68rem; color:var(--mocha-mid); line-height:1.6; }
+  .celebrity-loading { font-size:0.62rem; color:var(--blush-deep); letter-spacing:0.1em; }
+
+  /* ── Makeup Style Presets ── */
+  .style-presets { margin-bottom: 1.75rem; }
+  .presets-label { font-size: 0.58rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--blush-deep); margin-bottom: 0.75rem; }
+  .presets-scroll { display: flex; gap: 8px; flex-wrap: wrap; }
+  .preset-pill { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; padding: 8px 10px; border: 0.5px solid var(--border-mid); border-radius: 6px; background: var(--warm-white); transition: all 0.2s; min-width: 64px; font-family: 'DM Mono', monospace; }
+  .preset-pill:hover { border-color: var(--rose); }
+  .preset-pill.active { border-color: var(--rose); background: var(--petal); }
+  .preset-swatch-row { display: flex; gap: 3px; }
+  .preset-swatch { width: 12px; height: 12px; border-radius: 50%; border: 0.5px solid rgba(0,0,0,0.08); }
+  .preset-name { font-size: 0.52rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mocha); white-space: nowrap; }
+  .preset-desc { font-size: 0.48rem; letter-spacing: 0.05em; color: var(--blush-deep); text-align: center; line-height: 1.3; max-width: 70px; }
+  .divider-line { border: none; border-top: 0.5px solid var(--border); margin: 1rem 0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="tagline">Personalized Beauty Intelligence</div>
+    <div class="logo">VISAGE</div>
+    <div class="ornament">AI Makeup Analysis</div>
+  </header>
+
+  <div class="upload-section">
+    <label class="upload-zone" id="uploadZone" for="fileInput">
+      <div class="upload-prompt">
+        <div class="upload-icon">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <div class="upload-text">Upload your photo<br>for analysis</div>
+        <div class="upload-sub">JPG, PNG or WEBP · Frontal face</div>
+      </div>
+      <img id="previewImg" alt="Your photo" />
+    </label>
+    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" />
+
+    <div class="controls-panel">
+      <div>
+        <div class="panel-label">Your skin tone</div>
+        <div class="skin-tone-grid" id="skinTones">
+          <div class="tone-swatch selected" data-tone="fair" style="background:#FDE8D8;"></div>
+          <div class="tone-swatch" data-tone="light" style="background:#F5C9A8;"></div>
+          <div class="tone-swatch" data-tone="medium" style="background:#D4956A;"></div>
+          <div class="tone-swatch" data-tone="tan" style="background:#B06B3A;"></div>
+          <div class="tone-swatch" data-tone="deep" style="background:#7C4020;"></div>
+          <div class="tone-swatch" data-tone="rich" style="background:#3D1C0A;"></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel-label">Makeup style</div>
+        <div class="style-chips" id="styleChips">
+          <div class="chip selected" data-style="natural">Natural</div>
+          <div class="chip" data-style="glam">Glam</div>
+          <div class="chip" data-style="editorial">Editorial</div>
+          <div class="chip" data-style="office">Office</div>
+          <div class="chip" data-style="evening">Evening</div>
+          <div class="chip" data-style="bold">Bold & Artistic</div>
+        </div>
+      </div>
+      <div>
+        <div class="panel-label">Occasion</div>
+        <div class="style-chips" id="occasionChips">
+          <div class="chip selected" data-occasion="everyday">Everyday</div>
+          <div class="chip" data-occasion="wedding">Wedding</div>
+          <div class="chip" data-occasion="date">Date night</div>
+          <div class="chip" data-occasion="festival">Festival</div>
+          <div class="chip" data-occasion="photoshoot">Photoshoot</div>
+        </div>
+      </div>
+      <button class="analyze-btn" id="analyzeBtn" disabled><span>Analyze my face →</span></button>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+  </div>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-ring"></div>
+    <div class="loading-text">Analyzing your features</div>
+    <div class="loading-steps">
+      <div class="loading-step" id="step1">· Detecting face shape & structure</div>
+      <div class="loading-step" id="step2">· Identifying key facial features</div>
+      <div class="loading-step" id="step3">· Mapping your undertones</div>
+      <div class="loading-step" id="step4">· Curating your personalized palette</div>
+    </div>
+  </div>
+
+  <div class="results-section" id="resultsSection">
+    <div class="results-header">
+      <div class="results-title">Your Look</div>
+      <div class="results-subtitle">Personalized Analysis</div>
+    </div>
+
+    <div id="faceShapeBadge" class="detection-pills"></div>
+
+    <!-- Feature analysis -->
+    <div class="feature-analysis" id="featureAnalysis"></div>
+
+    <!-- Celebrity lookalike -->
+    <div class="celebrity-section" id="celebritySection" style="display:none; margin-bottom:2rem;"></div>
+
+    <!-- Makeup tips -->
+    <div class="results-header" style="margin-top:1rem;">
+      <div class="results-title">Makeup Tips</div>
+      <div class="results-subtitle">Tailored to your features</div>
+    </div>
+    <div class="tip-grid" id="tipGrid"></div>
+
+    <!-- Try-On Section -->
+    <div class="tryon-section" id="tryonSection">
+      <div class="tryon-header">
+        <div class="results-title">Try It On</div>
+        <div class="results-subtitle">Virtual Preview</div>
+      </div>
+
+      <!-- Makeup Style Presets -->
+      <div class="style-presets">
+        <div class="presets-label">Choose a makeup style</div>
+        <div class="presets-scroll" id="presetPills"></div>
+      </div>
+
+      <div class="tryon-layout">
+        <div>
+          <div class="canvas-wrap" id="canvasWrap">
+            <canvas id="baseCanvas"></canvas>
+            <canvas id="overlayCanvas"></canvas>
+          </div>
+          <div class="tryon-status" id="tryonStatus">Loading face detection model…</div>
+        </div>
+
+        <div class="tryon-controls">
+          <!-- Lips -->
+          <div>
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-name">Lip Color</div>
+                <div class="color-selector" id="lipColors"></div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggleLips" checked>
+                <span class="toggle-knob"></span>
+              </label>
+            </div>
+            <div class="slider-row" style="margin-top:8px;">
+              <div class="slider-label"><span>Opacity</span><span id="lipOpacityVal">65%</span></div>
+              <input type="range" id="lipOpacity" min="10" max="90" value="65">
+            </div>
+          </div>
+
+          <hr class="divider-line">
+
+          <!-- Blush -->
+          <div>
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-name">Blush</div>
+                <div class="color-selector" id="blushColors"></div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggleBlush" checked>
+                <span class="toggle-knob"></span>
+              </label>
+            </div>
+            <div class="slider-row" style="margin-top:8px;">
+              <div class="slider-label"><span>Opacity</span><span id="blushOpacityVal">35%</span></div>
+              <input type="range" id="blushOpacity" min="5" max="70" value="35">
+            </div>
+          </div>
+
+          <hr class="divider-line">
+
+          <!-- Eyeshadow -->
+          <div>
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-name">Eyeshadow</div>
+                <div class="color-selector" id="eyeColors"></div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggleEyes" checked>
+                <span class="toggle-knob"></span>
+              </label>
+            </div>
+            <div class="slider-row" style="margin-top:8px;">
+              <div class="slider-label"><span>Opacity</span><span id="eyeOpacityVal">40%</span></div>
+              <input type="range" id="eyeOpacity" min="5" max="80" value="40">
+            </div>
+          </div>
+
+          <hr class="divider-line">
+
+          <!-- Contour -->
+          <div>
+            <div class="toggle-row">
+              <div><div class="toggle-name">Contour</div></div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggleContour">
+                <span class="toggle-knob"></span>
+              </label>
+            </div>
+            <div class="slider-row" style="margin-top:8px;">
+              <div class="slider-label"><span>Opacity</span><span id="contourOpacityVal">20%</span></div>
+              <input type="range" id="contourOpacity" min="5" max="50" value="20">
+            </div>
+          </div>
+
+          <button class="tryon-btn" id="applyBtn">Apply Makeup</button>
+          <button class="tryon-btn secondary" id="resetBtn">Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Celebrity Lookalike Bottom Section ── -->
+  <div id="celebBottomSection" style="display:none; margin-top:3rem;">
+    <div class="celeb-bottom-wrap">
+      <div class="celeb-bottom-header">
+        <div class="celeb-star-row">✦ ✦ ✦</div>
+        <div class="celeb-bottom-title">Your Celebrity Twin</div>
+        <div class="celeb-bottom-sub">You've got the bone structure — now steal their makeup moment</div>
+      </div>
+
+      <div class="celeb-bottom-card">
+        <div class="celeb-bottom-photo-col">
+          <div class="celeb-bottom-photo-frame" id="celebBottomFrame">
+            <img id="celebBottomImg" style="display:none; width:100%; height:100%; object-fit:cover; border-radius:4px;" alt="" />
+            <div id="celebBottomPlaceholder" class="celeb-placeholder-icon">✦</div>
+          </div>
+          <div class="celeb-bottom-name" id="celebBottomName"></div>
+        </div>
+        <div class="celeb-bottom-content">
+          <div class="celeb-bottom-tag">FACE MATCH</div>
+          <div class="celeb-match-reason" id="celebBottomReason"></div>
+          <div class="celeb-bottom-divider"></div>
+          <div class="celeb-bottom-tag" style="margin-top:1rem;">STEAL HER LOOK</div>
+          <div class="celeb-steal-text" id="celebStealText"></div>
+          <div class="celeb-inspo-chips" id="celebChips"></div>
+        </div>
+      </div>
+
+      <div class="celeb-bottom-cta">
+        <div class="celeb-cta-text">Want to recreate this look?</div>
+        <div class="celeb-cta-sub">Scroll back up and try the makeup presets — your face, her vibe.</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>VISAGE · Powered by Claude AI · For educational purposes only</footer>
+</div>
+
+<!-- face-api.js from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script>
+// ── State ──
+let imageBase64 = null, imageSrc = null;
+let selectedTone = 'fair', selectedStyle = 'natural', selectedOccasion = 'everyday';
+let analysisResult = null;
+let faceLandmarks = null; // 468-point MediaPipe landmarks (normalized 0-1)
+let chosenLipHex = '#C0524A', chosenBlushHex = '#E8A090', chosenEyeHex = '#8B6B52';
+
+// MediaPipe Face Mesh landmark indices (468 points, normalized x/y 0-1)
+// Reference: https://github.com/google/mediapipe/blob/master/mediapipe/modules/face_geometry/data/canonical_face_model_uv_visualization.png
+const LM = {
+  // Outer lips
+  outerLip: [61,185,40,39,37,0,267,269,270,409,291,375,321,405,314,17,84,181,91,146],
+  // Inner lips (mouth opening)
+  innerLip: [78,191,80,81,82,13,312,311,310,415,308,324,318,402,317,14,87,178,88,95],
+  // Left eye (from subject's perspective = right side of image)
+  leftEyeTop:  [386,385,384,398,362,382,381,380,374,373,390,249],
+  rightEyeTop: [159,158,157,173,133,154,153,145,144,163,7,33],
+  // Blush zones
+  leftCheek:  [116,123,147,213,192,214,210,211,32,208,199,428,262],
+  rightCheek: [345,352,376,433,411,416,434,430,262,424,423,358,281],
+  // Jawline for contour
+  leftJaw:  [172,136,150,149,176,148,152],
+  rightJaw: [397,365,379,378,400,377,152],
+  // Nose bridge highlight
+  noseBridge: [168,6,197,195,5]
+};
+
+function setStatus(msg) {
+  const el = document.getElementById('tryonStatus');
+  if (el) el.textContent = msg;
+}
+
+// ── Upload ──
+const uploadZone = document.getElementById('uploadZone');
+const fileInput  = document.getElementById('fileInput');
+const previewImg = document.getElementById('previewImg');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const errorMsg   = document.getElementById('errorMsg');
+
+fileInput.addEventListener('change', e => { if(e.target.files[0]) handleFile(e.target.files[0]); });
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) handleFile(f);
+});
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    imageSrc = e.target.result;
+    imageBase64 = imageSrc.split(',')[1];
+    previewImg.src = imageSrc;
+    uploadZone.classList.add('has-image');
+    analyzeBtn.disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Chip/swatch selection ──
+document.getElementById('skinTones').addEventListener('click', e => {
+  const s = e.target.closest('.tone-swatch'); if(!s) return;
+  document.querySelectorAll('.tone-swatch').forEach(x=>x.classList.remove('selected'));
+  s.classList.add('selected'); selectedTone = s.dataset.tone;
+});
+document.getElementById('styleChips').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if(!c) return;
+  document.querySelectorAll('#styleChips .chip').forEach(x=>x.classList.remove('selected'));
+  c.classList.add('selected'); selectedStyle = c.dataset.style;
+});
+document.getElementById('occasionChips').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if(!c) return;
+  document.querySelectorAll('#occasionChips .chip').forEach(x=>x.classList.remove('selected'));
+  c.classList.add('selected'); selectedOccasion = c.dataset.occasion;
+});
+
+// ── Analyze ──
+analyzeBtn.addEventListener('click', analyze);
+async function analyze() {
+  errorMsg.classList.remove('visible');
+  document.getElementById('resultsSection').classList.remove('visible');
+  document.getElementById('loadingOverlay').classList.add('visible');
+  analyzeBtn.disabled = true;
+  const steps = ['step1','step2','step3','step4'];
+  steps.forEach((id,i) => setTimeout(() => document.getElementById(id).classList.add('show'), i*700));
+
+  const prompt = `You are an expert makeup artist and beauty consultant analyzing a facial photo.
+The person has a ${selectedTone} skin tone, prefers a ${selectedStyle} makeup style, for ${selectedOccasion}.
+
+Analyze the face carefully and return ONLY this JSON (no other text):
+{
+  "faceShape": "oval|round|square|heart|diamond|oblong",
+  "faceShapeDescription": "one sentence describing their specific face shape proportions",
+  "eyeShape": "almond|round|hooded|monolid|upturned|downturned|deep-set|wide-set|close-set",
+  "lipShape": "full|thin|thin-top|thin-bottom|small|wide|heart-shaped|downturned-corners",
+  "undertone": "warm|cool|neutral",
+  "attractiveFeatures": "2-3 sentences highlighting genuinely attractive features of this face — be specific and positive, mention standout features like bone structure, eye shape, lip definition, symmetry etc",
+  "faceShapeMakeupAdvice": "2 sentences of contouring/blush placement specific to their detected face shape based on expert guidelines",
+  "eyeShapeMakeupAdvice": "2 sentences of eyeshadow/liner advice specific to their detected eye shape",
+  "lipShapeMakeupAdvice": "2 sentences of liner/color advice specific to their detected lip shape",
+  "celebrityLookalike": {
+    "name": "Full celebrity name whose facial features most closely resemble this person (pick someone known for great makeup looks)",
+    "reason": "2 sentences explaining which specific facial features match — be detailed about bone structure, eye shape, lip shape",
+    "stealTheirLook": "2-3 sentences describing this celebrity's signature makeup style and how this person should recreate it for their features — be specific about colors, techniques, products",
+    "makeupKeywords": ["keyword1","keyword2","keyword3","keyword4"]
+  },
+  "tips": [
+    {"category":"Foundation & Base","heading":"short title","advice":"2-3 sentences","colors":[{"name":"...","hex":"#XXXXXX"},{"name":"...","hex":"#XXXXXX"}]},
+    {"category":"Eyes","heading":"short title","advice":"2-3 sentences","colors":[{"name":"...","hex":"#XXXXXX"},{"name":"...","hex":"#XXXXXX"},{"name":"...","hex":"#XXXXXX"},{"name":"...","hex":"#XXXXXX"}]},
+    {"category":"Brows","heading":"short title","advice":"2-3 sentences","colors":[]},
+    {"category":"Contour & Highlight","heading":"short title","advice":"2-3 sentences specific to their face shape","colors":[{"name":"...","hex":"#XXXXXX"},{"name":"...","hex":"#XXXXXX"}]},
+    {"category":"Blush & Cheeks","heading":"short title","advice":"2-3 sentences","colors":[{"name":"...","hex":"#XXXXXX"},{"name":"...","hex":"#XXXXXX"},{"name":"...","hex":"#XXXXXX"},{"name":"...","hex":"#XXXXXX"}]},
+    {"category":"Lips","heading":"short title","advice":"2-3 sentences specific to their lip shape","colors":[{"name":"...","hex":"#XXXXXX"},{"name":"...","hex":"#XXXXXX"},{"name":"...","hex":"#XXXXXX"},{"name":"...","hex":"#XXXXXX"},{"name":"...","hex":"#XXXXXX"}]}
+  ],
+  "proTip": "one overall pro tip specific to their features"
+}
+
+CRITICAL RULES FOR LIP COLORS:
+- NEVER suggest beige, nude, taupe, greige, or any washed-out pale lip color. These look unflattering on most people.
+- All lip color suggestions must have visible pigment and color payoff.
+- Choose from: roses, berries, mauves, roses, corals, reds, plums, cranberries, brick reds, dusty roses, wine tones.
+- Minimum color vibrancy — no lip colors lighter than a medium rose or mauve.
+- Hex codes for lips must be distinctly colored, never near skin tone hex values.
+`;
+
+  try {
+    const resp = await fetch('/api/analyze', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-5', max_tokens:4000,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:'image/jpeg',data:imageBase64}},
+          {type:'text',text:prompt}
+        ]}]
+      })
+    });
+    if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+    const data = await resp.json();
+    const raw  = data.content.map(b=>b.text||'').join('');
+    const clean = raw.replace(/```json|```/g,'').trim();
+    const j0=clean.indexOf('{'), j1=clean.lastIndexOf('}');
+    if(j0===-1||j1===-1) throw new Error('No JSON in response');
+    analysisResult = JSON.parse(clean.slice(j0,j1+1));
+    renderResults(analysisResult);
+  } catch(err) {
+    console.error(err);
+    errorMsg.textContent = 'Analysis could not be completed. ' + err.message;
+    errorMsg.classList.add('visible');
+  } finally {
+    document.getElementById('loadingOverlay').classList.remove('visible');
+    steps.forEach(id=>document.getElementById(id).classList.remove('show'));
+    analyzeBtn.disabled = false;
+  }
+}
+
+function renderResults(data) {
+  // ── Detection pills ──
+  document.getElementById('faceShapeBadge').innerHTML = `
+    <span class="detection-pill"><span class="label">Face</span>${data.faceShape}</span>
+    <span class="detection-pill"><span class="label">Eyes</span>${data.eyeShape||'—'}</span>
+    <span class="detection-pill"><span class="label">Lips</span>${data.lipShape||'—'}</span>
+    <span class="detection-pill"><span class="label">Undertone</span>${data.undertone}</span>`;
+
+  // ── Feature analysis cards ──
+  const featureGrid = document.getElementById('featureAnalysis');
+  featureGrid.innerHTML = '';
+
+  if (data.attractiveFeatures) {
+    const ac = document.createElement('div');
+    ac.className = 'feature-card attractive full';
+    ac.innerHTML = `<div class="feature-tag">✦ Your Standout Features</div>
+      <div class="feature-body">${data.attractiveFeatures}</div>`;
+    featureGrid.appendChild(ac);
+  }
+  const featureAdvice = [
+    { tag:'Face Shape · '+data.faceShape, title:'Contouring & Placement', body: data.faceShapeMakeupAdvice },
+    { tag:'Eye Shape · '+data.eyeShape, title:'Eye Makeup Strategy', body: data.eyeShapeMakeupAdvice },
+    { tag:'Lip Shape · '+data.lipShape, title:'Lip Definition', body: data.lipShapeMakeupAdvice },
+  ];
+  featureAdvice.forEach(f => {
+    if (!f.body) return;
+    const card = document.createElement('div');
+    card.className = 'feature-card';
+    card.innerHTML = `<div class="feature-tag">${f.tag}</div>
+      <div class="feature-title">${f.title}</div>
+      <div class="feature-body">${f.body}</div>`;
+    featureGrid.appendChild(card);
+  });
+
+  // ── Celebrity lookalike (top card + bottom section) ──
+  if (data.celebrityLookalike?.name) {
+    const cel = document.getElementById('celebritySection');
+    cel.innerHTML = `
+      <div class="celebrity-photo-wrap">
+        <div class="celebrity-photo" id="celPhoto" style="overflow:hidden;">
+          <img id="celImg" style="width:100%;height:100%;object-fit:cover;display:none;" alt="${data.celebrityLookalike.name}"/>
+          <span id="celEmoji" style="font-size:2.5rem;">✦</span>
+        </div>
+      </div>
+      <div class="celebrity-info">
+        <div class="celebrity-label">Your celebrity lookalike</div>
+        <div class="celebrity-name">${data.celebrityLookalike.name}</div>
+        <div class="celebrity-reason">${data.celebrityLookalike.reason}</div>
+        <div class="celebrity-loading" id="celLoading" style="margin-top:6px;">Searching for photo…</div>
+      </div>`;
+    cel.style.display = 'grid';
+
+    // ── Populate bottom celebrity section ──
+    const bottomSection = document.getElementById('celebBottomSection');
+    if (bottomSection) {
+      document.getElementById('celebBottomName').textContent = data.celebrityLookalike.name;
+      document.getElementById('celebBottomReason').textContent = data.celebrityLookalike.reason || '';
+      document.getElementById('celebStealText').textContent = data.celebrityLookalike.stealTheirLook || '';
+      const chipsEl = document.getElementById('celebChips');
+      if (chipsEl && data.celebrityLookalike.makeupKeywords?.length) {
+        chipsEl.innerHTML = data.celebrityLookalike.makeupKeywords
+          .map(k => `<span class="celeb-chip">${k}</span>`).join('');
+      }
+      bottomSection.style.display = 'block';
+    }
+
+    fetchCelebPhoto(data.celebrityLookalike.name);
+  }
+
+  // ── Makeup tips grid ──
+  const grid = document.getElementById('tipGrid');
+  grid.innerHTML = '';
+  data.tips.forEach((tip,i) => {
+    const card = document.createElement('div');
+    card.className = 'tip-card'+(i===data.tips.length-1&&data.tips.length%2!==0?' full-width-tip':'');
+    const swatches = tip.colors?.length
+      ? `<div class="color-swatches-row">${tip.colors.map(c=>`<div class="color-pill"><div class="color-dot" style="background:${c.hex};border:0.5px solid rgba(0,0,0,0.1)"></div>${c.name}</div>`).join('')}</div>` : '';
+    card.innerHTML=`<div class="tip-category">${tip.category}</div><div class="tip-heading">${tip.heading}</div><div class="tip-body">${tip.advice}</div>${swatches}`;
+    grid.appendChild(card);
+  });
+  if (data.proTip) {
+    const p=document.createElement('div');
+    p.className='tip-card full-width-tip';
+    p.style.cssText='border-left:3px solid var(--rose);background:var(--petal)';
+    p.innerHTML=`<div class="tip-category" style="color:var(--rose)">Artist's Pro Tip</div><div class="tip-body" style="font-style:italic;color:var(--rose-dark)">${data.proTip}</div>`;
+    grid.appendChild(p);
+  }
+  document.getElementById('resultsSection').classList.add('visible');
+  setupTryon(data);
+  document.getElementById('resultsSection').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+async function fetchCelebPhoto(name) {
+  try {
+    const query = encodeURIComponent(name.replace(/ /g,'_'));
+    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${query}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('not found');
+    const wikiData = await resp.json();
+    const imgUrl = wikiData.thumbnail?.source || wikiData.originalimage?.source;
+
+    if (imgUrl) {
+      // Top card photo
+      const img = document.getElementById('celImg');
+      const emoji = document.getElementById('celEmoji');
+      const loading = document.getElementById('celLoading');
+      if (img) {
+        img.src = imgUrl;
+        img.onload = () => {
+          img.style.display='block';
+          if(emoji) emoji.style.display='none';
+        };
+      }
+      if (loading) loading.style.display='none';
+
+      // Bottom section photo — larger version
+      const bottomImg = document.getElementById('celebBottomImg');
+      const bottomPh  = document.getElementById('celebBottomPlaceholder');
+      // Use a larger version of the thumbnail
+      const largeUrl  = imgUrl.replace(/\/\d+px-/, '/400px-');
+      if (bottomImg) {
+        bottomImg.src = largeUrl;
+        bottomImg.alt = name;
+        bottomImg.onload = () => {
+          bottomImg.style.display = 'block';
+          if (bottomPh) bottomPh.style.display = 'none';
+        };
+        // Fallback to original if large fails
+        bottomImg.onerror = () => { bottomImg.src = imgUrl; bottomImg.style.display='block'; if(bottomPh) bottomPh.style.display='none'; };
+      }
+    } else {
+      const loading = document.getElementById('celLoading');
+      if (loading) loading.textContent = 'Search "'+name+'" for inspo';
+      const bottomPh = document.getElementById('celebBottomPlaceholder');
+      if (bottomPh) bottomPh.textContent = '✦';
+    }
+  } catch(e) {
+    const loading = document.getElementById('celLoading');
+    if (loading) loading.textContent = 'Search "'+name+'" for inspo';
+  }
+}
+
+// ── Helpers ──
+function hexToRgb(hex) {
+  hex=hex.replace('#','');
+  if(hex.length===3) hex=hex.split('').map(c=>c+c).join('');
+  return {r:parseInt(hex.slice(0,2),16), g:parseInt(hex.slice(2,4),16), b:parseInt(hex.slice(4,6),16)};
+}
+
+function lmPx(lm, W, H) {
+  // MediaPipe gives normalized coords; convert to canvas pixels
+  return {x: lm.x*W, y: lm.y*H};
+}
+
+function getPoints(indices, W, H) {
+  if (!faceLandmarks) return null;
+  return indices.map(i => lmPx(faceLandmarks[i], W, H));
+}
+
+// Fill a polygon of points
+function fillPoly(ctx, pts, r, g, b, alpha, blur=0) {
+  if (!pts || pts.length < 3) return;
+  if (blur > 0) { ctx.save(); ctx.filter = `blur(${blur}px)`; }
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i=1;i<pts.length;i++) {
+    const p0=pts[i-1],p1=pts[i];
+    ctx.quadraticCurveTo(p0.x,p0.y,(p0.x+p1.x)/2,(p0.y+p1.y)/2);
+  }
+  ctx.closePath();
+  ctx.fillStyle=`rgba(${r},${g},${b},${alpha})`;
+  ctx.fill();
+  if (blur > 0) ctx.restore();
+}
+
+// Soft radial blob
+function drawBlob(ctx, x, y, rx, ry, r, g, b, alpha) {
+  ctx.save();
+  ctx.filter = `blur(${Math.round(rx*0.4)}px)`;
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2);
+  ctx.fillStyle=`rgba(${r},${g},${b},${alpha})`;
+  ctx.fill();
+  ctx.restore();
+}
+
+// ── MediaPipe detection ──
+function runMediaPipe(imgEl, W, H, onDone) {
+  setStatus('Detecting face with MediaPipe…');
+  const faceMesh = new FaceMesh({locateFile: f =>
+    `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+  });
+  faceMesh.setOptions({
+    maxNumFaces: 1,
+    refineLandmarks: true,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+  });
+  faceMesh.onResults(results => {
+    if (results.multiFaceLandmarks && results.multiFaceLandmarks[0]) {
+      faceLandmarks = results.multiFaceLandmarks[0];
+      setStatus('Face detected — apply makeup below');
+    } else {
+      faceLandmarks = null;
+      setStatus('No face detected — using estimated placement');
+    }
+    onDone();
+  });
+  // Send image to faceMesh
+  faceMesh.send({image: imgEl}).catch(e => {
+    console.error(e);
+    faceLandmarks = null;
+    setStatus('Detection failed — using estimated placement');
+    onDone();
+  });
+}
+
+// ── Setup try-on ──
+function setupTryon(data) {
+  const lipTip   = data.tips.find(t=>t.category==='Lips');
+  const blushTip = data.tips.find(t=>t.category==='Blush & Cheeks');
+  const eyeTip   = data.tips.find(t=>t.category==='Eyes');
+  const validHex = c => c.hex && /^#[0-9A-Fa-f]{6}$/.test(c.hex);
+  const lipCols   = (lipTip?.colors||[]).filter(validHex);
+  const blushCols = (blushTip?.colors||[]).filter(validHex);
+  const eyeCols   = (eyeTip?.colors||[]).filter(validHex);
+
+  chosenLipHex   = lipCols[0]?.hex   || '#C0524A';
+  chosenBlushHex = blushCols[0]?.hex || '#E8A090';
+  chosenEyeHex   = eyeCols[0]?.hex   || '#8B6B52';
+
+  buildColorSelector('lipColors',   lipCols,   chosenLipHex,   h=>{chosenLipHex=h;   drawOverlay();}, 'lip');
+  buildColorSelector('blushColors', blushCols, chosenBlushHex, h=>{chosenBlushHex=h; drawOverlay();}, 'blush');
+  buildColorSelector('eyeColors',   eyeCols,   chosenEyeHex,   h=>{chosenEyeHex=h;   drawOverlay();}, 'eye');
+  buildPresetPills(chosenLipHex, chosenBlushHex, chosenEyeHex);
+
+  const base    = document.getElementById('baseCanvas');
+  const overlay = document.getElementById('overlayCanvas');
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    base.width = overlay.width = img.naturalWidth;
+    base.height = overlay.height = img.naturalHeight;
+    base.getContext('2d').drawImage(img,0,0);
+    // Run MediaPipe
+    runMediaPipe(img, img.naturalWidth, img.naturalHeight, () => drawOverlay());
+  };
+  img.src = imageSrc;
+
+  // Bind controls
+  document.getElementById('applyBtn').onclick = drawOverlay;
+  document.getElementById('resetBtn').onclick = () => {
+    overlay.getContext('2d').clearRect(0,0,overlay.width,overlay.height);
+    setStatus('Cleared — click Apply Makeup to reapply');
+  };
+  ['lipOpacity','blushOpacity','eyeOpacity','contourOpacity'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', ()=>{
+      document.getElementById(id+'Val').textContent = document.getElementById(id).value+'%';
+      drawOverlay();
+    });
+  });
+  ['toggleLips','toggleBlush','toggleEyes','toggleContour'].forEach(id=>{
+    document.getElementById(id).addEventListener('change', drawOverlay);
+  });
+}
+
+// Curated palettes shown below AI picks
+const PALETTES = {
+  lip: [
+    {name:'Nude Blush',    hex:'#C8917A'}, {name:'Rose Petal',   hex:'#C4687A'},
+    {name:'Berry Stain',   hex:'#8B3A5A'}, {name:'Coral Kiss',   hex:'#D4654A'},
+    {name:'Mauve Dream',   hex:'#9E6B7A'}, {name:'Classic Red',  hex:'#C02020'},
+    {name:'Terracotta',    hex:'#B85C3A'}, {name:'Plum Wine',    hex:'#6B2D4A'},
+    {name:'Peachy Nude',   hex:'#DDA080'}, {name:'Deep Rose',    hex:'#A03050'},
+    {name:'Brick',         hex:'#A04030'}, {name:'MLBB',         hex:'#B07060'},
+  ],
+  blush: [
+    {name:'Peach Glow',   hex:'#F0A080'}, {name:'Baby Pink',    hex:'#F0B0C0'},
+    {name:'Rose Flush',   hex:'#D87090'}, {name:'Apricot',      hex:'#E89870'},
+    {name:'Berry Cheek',  hex:'#C06080'}, {name:'Coral Flush',  hex:'#E87860'},
+    {name:'Dusty Rose',   hex:'#C08090'}, {name:'Warm Peach',   hex:'#E8A878'},
+  ],
+  eye: [
+    {name:'Champagne',    hex:'#D4B896'}, {name:'Warm Taupe',   hex:'#9C7D6A'},
+    {name:'Smoky Brown',  hex:'#6B4A38'}, {name:'Matte Black',  hex:'#2A1A14'},
+    {name:'Bronze',       hex:'#A07040'}, {name:'Copper',       hex:'#B06030'},
+    {name:'Dusty Mauve',  hex:'#9A7080'}, {name:'Forest',       hex:'#4A6050'},
+    {name:'Navy',         hex:'#2A3A5A'}, {name:'Plum',         hex:'#6A3A5A'},
+    {name:'Rose Gold',    hex:'#C09080'}, {name:'Warm Gold',    hex:'#C0A050'},
+  ]
+};
+
+// ── Makeup Style Presets ──
+// Each style defines: lip/blush/eye hex, opacities, toggles, and a brief signature
+const MAKEUP_STYLES = [
+  {
+    id: 'ai',
+    name: 'AI Pick',
+    desc: 'Your analysis',
+    signature: 'Tailored to your face',
+    swatches: [], // filled dynamically from AI result
+    lip:   { hex: null, opacity: 65, on: true  },
+    blush: { hex: null, opacity: 35, on: true  },
+    eye:   { hex: null, opacity: 40, on: true  },
+    contour: { opacity: 20, on: false }
+  },
+  {
+    id: 'natural',
+    name: 'Natural',
+    desc: 'Everyday glow',
+    signature: 'Nude tones, light coverage, fresh skin finish',
+    swatches: ['#DDA080','#F0B0A0','#D4B896'],
+    lip:   { hex: '#C8917A', opacity: 45, on: true  },
+    blush: { hex: '#F0B0A0', opacity: 25, on: true  },
+    eye:   { hex: '#D4B896', opacity: 25, on: true  },
+    contour: { opacity: 12, on: false }
+  },
+  {
+    id: 'korean',
+    name: 'Korean',
+    desc: 'Glass skin',
+    signature: 'Gradient lips, aegyo-sal eyes, cloud blush, dewy base',
+    swatches: ['#E88095','#FFB5C5','#F5D0C0'],
+    lip:   { hex: '#E88095', opacity: 55, on: true  },
+    blush: { hex: '#FFB5C5', opacity: 45, on: true  },
+    eye:   { hex: '#F5D0C0', opacity: 30, on: true  },
+    contour: { opacity: 8,  on: false }
+  },
+  {
+    id: 'smokey',
+    name: 'Smokey',
+    desc: 'Sultry drama',
+    signature: 'Dark blended lids, kohl liner, nude lips, strong contour',
+    swatches: ['#2A1A14','#C0524A','#8B6B52'],
+    lip:   { hex: '#C8917A', opacity: 50, on: true  },
+    blush: { hex: '#D08070', opacity: 20, on: true  },
+    eye:   { hex: '#2A1A14', opacity: 65, on: true  },
+    contour: { opacity: 30, on: true  }
+  },
+  {
+    id: 'glam',
+    name: 'Glam',
+    desc: 'Red carpet',
+    signature: 'Bold red lip, sculpted contour, warm bronze lids, defined cheekbone',
+    swatches: ['#C02020','#B06030','#D4956A'],
+    lip:   { hex: '#C02020', opacity: 80, on: true  },
+    blush: { hex: '#D4956A', opacity: 30, on: true  },
+    eye:   { hex: '#B06030', opacity: 55, on: true  },
+    contour: { opacity: 35, on: true  }
+  },
+  {
+    id: 'editorial',
+    name: 'Editorial',
+    desc: 'Bold art',
+    signature: 'Graphic color, unexpected hues, high contrast, fashion-forward',
+    swatches: ['#6B2D4A','#4A6050','#C09080'],
+    lip:   { hex: '#8B3A5A', opacity: 85, on: true  },
+    blush: { hex: '#C06080', opacity: 50, on: true  },
+    eye:   { hex: '#4A6050', opacity: 70, on: true  },
+    contour: { opacity: 25, on: true  }
+  },
+  {
+    id: 'bridal',
+    name: 'Bridal',
+    desc: 'Wedding day',
+    signature: 'Long-wear base, rich reds, warm blush, defined brow arch',
+    swatches: ['#A03050','#E8A070','#9C7D6A'],
+    lip:   { hex: '#A03050', opacity: 80, on: true  },
+    blush: { hex: '#E8A070', opacity: 35, on: true  },
+    eye:   { hex: '#9C7D6A', opacity: 50, on: true  },
+    contour: { opacity: 28, on: true  }
+  },
+  {
+    id: 'dewy',
+    name: 'Dewy',
+    desc: 'Glass glow',
+    signature: 'Light-reflecting base, peachy flush, champagne lids, glossy lips',
+    swatches: ['#E8A888','#F0C0A0','#D4B896'],
+    lip:   { hex: '#E8A888', opacity: 50, on: true  },
+    blush: { hex: '#F0C0A0', opacity: 40, on: true  },
+    eye:   { hex: '#D4B896', opacity: 30, on: true  },
+    contour: { opacity: 10, on: false }
+  },
+  {
+    id: 'matte',
+    name: 'Matte',
+    desc: 'Velvety finish',
+    signature: 'Shine-free base, deep berry lips, muted blush, defined contour',
+    swatches: ['#8B3A5A','#C08090','#9A7080'],
+    lip:   { hex: '#8B3A5A', opacity: 80, on: true  },
+    blush: { hex: '#C08090', opacity: 28, on: true  },
+    eye:   { hex: '#9A7080', opacity: 45, on: true  },
+    contour: { opacity: 22, on: true  }
+  },
+  {
+    id: 'shimmer',
+    name: 'Shimmer',
+    desc: 'Festival glow',
+    signature: 'Metallic lids, glossy lips, highlighter-heavy cheeks, rose gold tones',
+    swatches: ['#C09080','#D4956A','#C0A050'],
+    lip:   { hex: '#D4956A', opacity: 60, on: true  },
+    blush: { hex: '#E8A878', opacity: 45, on: true  },
+    eye:   { hex: '#C09080', opacity: 60, on: true  },
+    contour: { opacity: 15, on: false }
+  },
+];
+
+let activePresetId = 'ai';
+
+function buildPresetPills(aiLipHex, aiBlushHex, aiEyeHex) {
+  // Fill AI swatches dynamically
+  MAKEUP_STYLES[0].lip.hex   = aiLipHex;
+  MAKEUP_STYLES[0].blush.hex = aiBlushHex;
+  MAKEUP_STYLES[0].eye.hex   = aiEyeHex;
+  MAKEUP_STYLES[0].swatches  = [aiLipHex, aiBlushHex, aiEyeHex];
+
+  const container = document.getElementById('presetPills');
+  container.innerHTML = '';
+  MAKEUP_STYLES.forEach(style => {
+    const pill = document.createElement('div');
+    pill.className = 'preset-pill' + (style.id === 'ai' ? ' active' : '');
+    pill.dataset.id = style.id;
+
+    const swatchRow = document.createElement('div');
+    swatchRow.className = 'preset-swatch-row';
+    style.swatches.forEach(hex => {
+      const s = document.createElement('div');
+      s.className = 'preset-swatch';
+      s.style.background = hex;
+      swatchRow.appendChild(s);
+    });
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'preset-name';
+    nameEl.textContent = style.name;
+
+    const descEl = document.createElement('div');
+    descEl.className = 'preset-desc';
+    descEl.textContent = style.desc;
+
+    pill.appendChild(swatchRow);
+    pill.appendChild(nameEl);
+    pill.appendChild(descEl);
+
+    pill.addEventListener('click', () => applyPreset(style));
+    container.appendChild(pill);
+  });
+}
+
+function applyPreset(style) {
+  activePresetId = style.id;
+
+  // Update active pill
+  document.querySelectorAll('.preset-pill').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.preset-pill[data-id="${style.id}"]`)?.classList.add('active');
+
+  // Update sliders and toggles
+  function setSlider(id, val) {
+    const el = document.getElementById(id);
+    if (el) { el.value = val; document.getElementById(id+'Val').textContent = val+'%'; }
+  }
+  function setToggle(id, val) {
+    const el = document.getElementById(id); if (el) el.checked = val;
+  }
+
+  setSlider('lipOpacity',     style.lip.opacity);
+  setSlider('blushOpacity',   style.blush.opacity);
+  setSlider('eyeOpacity',     style.eye.opacity);
+  setSlider('contourOpacity', style.contour.opacity);
+  setToggle('toggleLips',    style.lip.on);
+  setToggle('toggleBlush',   style.blush.on);
+  setToggle('toggleEyes',    style.eye.on);
+  setToggle('toggleContour', style.contour.on);
+
+  // Update chosen colors
+  if (style.lip.hex)   chosenLipHex   = style.lip.hex;
+  if (style.blush.hex) chosenBlushHex = style.blush.hex;
+  if (style.eye.hex)   chosenEyeHex   = style.eye.hex;
+
+  // Refresh active dots in color selectors
+  ['lipColors','blushColors','eyeColors'].forEach(cid => {
+    const hexMap = {lipColors: chosenLipHex, blushColors: chosenBlushHex, eyeColors: chosenEyeHex};
+    const target = hexMap[cid];
+    const dots = document.querySelectorAll(`#${cid} .cs-dot`);
+    let found = false;
+    dots.forEach(d => {
+      const matches = d.style.background === target ||
+        rgbToHex(d.style.background).toLowerCase() === target.toLowerCase();
+      d.classList.toggle('active', matches);
+      if (matches) found = true;
+    });
+    if (!found && dots.length) { dots[0].classList.add('active'); }
+  });
+
+  // Show style description under status
+  setStatus(`${style.name}: ${style.signature}`);
+  drawOverlay();
+}
+
+function rgbToHex(rgb) {
+  const m = rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  if (!m) return rgb;
+  return '#' + [m[1],m[2],m[3]].map(x=>parseInt(x).toString(16).padStart(2,'0')).join('');
+}
+
+function buildColorSelector(cid, aiColors, defaultHex, onChange, paletteKey) {
+  const container = document.getElementById(cid);
+  container.innerHTML = '';
+  let activeHex = defaultHex;
+
+  function makeDot(hex, name, isFirst) {
+    const dot = document.createElement('div');
+    dot.className = 'cs-dot' + (isFirst ? ' active' : '');
+    dot.style.background = hex;
+    dot.title = name;
+    dot.onclick = () => {
+      container.querySelectorAll('.cs-dot').forEach(d=>d.classList.remove('active'));
+      dot.classList.add('active');
+      activeHex = hex;
+      onChange(hex);
+    };
+    return dot;
+  }
+
+  // AI recommended colors
+  if (aiColors.length > 0) {
+    const label = document.createElement('div');
+    label.className = 'color-section-label';
+    label.textContent = 'AI recommended';
+    container.appendChild(label);
+    const group = document.createElement('div');
+    group.className = 'color-group';
+    aiColors.forEach((c,i) => group.appendChild(makeDot(c.hex, c.name, i===0)));
+    container.appendChild(group);
+  }
+
+  // Curated palette
+  const palette = PALETTES[paletteKey] || [];
+  if (palette.length > 0) {
+    const label2 = document.createElement('div');
+    label2.className = 'color-section-label';
+    label2.textContent = 'More shades';
+    container.appendChild(label2);
+    const group2 = document.createElement('div');
+    group2.className = 'color-group';
+    palette.forEach((c,i) => group2.appendChild(makeDot(c.hex, c.name, aiColors.length===0 && i===0)));
+    container.appendChild(group2);
+  }
+
+  // Custom color picker
+  const pickerRow = document.createElement('div');
+  pickerRow.className = 'custom-picker-row';
+  pickerRow.innerHTML = '<label>Custom</label>';
+  const picker = document.createElement('input');
+  picker.type = 'color';
+  picker.value = defaultHex;
+  picker.title = 'Pick any color';
+  picker.oninput = () => {
+    container.querySelectorAll('.cs-dot').forEach(d=>d.classList.remove('active'));
+    activeHex = picker.value;
+    onChange(picker.value);
+  };
+  pickerRow.appendChild(picker);
+  container.appendChild(pickerRow);
+}
+
+// ── Draw overlay ──
+// MediaPipe 468-point landmark indices for precise regions
+// Upper eyelid crease line: follow the actual lid fold, not the socket
+const LID_LEFT  = [246,161,160,159,158,157,173,133,155,154,153,145,144,163,7,33,246];
+const LID_RIGHT = [466,388,387,386,385,384,398,362,382,381,380,374,373,390,249,263,466];
+// Lower lash line (for aegyo-sal / under-eye)
+const LOWER_LEFT  = [33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246];
+const LOWER_RIGHT = [263,249,390,373,374,380,381,382,362,398,384,385,386,387,388,466];
+// Tight upper lid (just the lash line strip, not full socket)
+const LASH_LEFT  = [33,160,158,133,153,144];
+const LASH_RIGHT = [263,387,385,362,380,373];
+
+function drawOverlay() {
+  const overlay = document.getElementById('overlayCanvas');
+  if (!overlay.width) return;
+  const ctx = overlay.getContext('2d');
+  ctx.clearRect(0,0,overlay.width,overlay.height);
+  const W=overlay.width, H=overlay.height;
+
+  const lipOn     = document.getElementById('toggleLips').checked;
+  const blushOn   = document.getElementById('toggleBlush').checked;
+  const eyeOn     = document.getElementById('toggleEyes').checked;
+  const contourOn = document.getElementById('toggleContour').checked;
+  const lipAlpha     = document.getElementById('lipOpacity').value/100;
+  const blushAlpha   = document.getElementById('blushOpacity').value/100;
+  const eyeAlpha     = document.getElementById('eyeOpacity').value/100;
+  const contourAlpha = document.getElementById('contourOpacity').value/100;
+
+  // Determine if korean style for special rendering
+  const isKorean = activePresetId === 'korean';
+
+  if (faceLandmarks) {
+    // ── BLUSH ──
+    if (blushOn) {
+      const {r,g,b}=hexToRgb(chosenBlushHex);
+      if (isKorean) {
+        // Korean: "cloud blush" — high on nose bridge and under-eye, more centered
+        const noseTip  = faceLandmarks[4];
+        const lEye = faceLandmarks[133];
+        const rEye = faceLandmarks[362];
+        // Under-eye blush (aegyo-sal area)
+        const lUnder = {x:(lEye.x+faceLandmarks[145].x)/2*W, y:faceLandmarks[145].y*H + H*0.025};
+        const rUnder = {x:(rEye.x+faceLandmarks[374].x)/2*W, y:faceLandmarks[374].y*H + H*0.025};
+        const bw = W*0.09;
+        drawBlob(ctx, lUnder.x, lUnder.y, bw, bw*0.45, r,g,b, blushAlpha*0.9);
+        drawBlob(ctx, rUnder.x, rUnder.y, bw, bw*0.45, r,g,b, blushAlpha*0.9);
+        // Nose bridge flush
+        drawBlob(ctx, noseTip.x*W, noseTip.y*H - H*0.04, W*0.04, H*0.05, r,g,b, blushAlpha*0.5);
+      } else {
+        // Standard: cheek blush using polygon landmarks
+        [LM.leftCheek, LM.rightCheek].forEach(idxs => {
+          const pts = getPoints(idxs,W,H);
+          if (pts) fillPoly(ctx,pts,r,g,b,blushAlpha,W*0.03);
+        });
+      }
+    }
+
+    // ── EYESHADOW / LINER ──
+    if (eyeOn) {
+      const {r,g,b}=hexToRgb(chosenEyeHex);
+      if (isKorean) {
+        // Korean eye: shimmer lid + individual lash strokes + aegyo-sal highlight
+        const eyePairs = [
+          { lash: LASH_LEFT,  lid: LID_LEFT,  lower: LOWER_LEFT,  innerCorner: 133, outerCorner: 33  },
+          { lash: LASH_RIGHT, lid: LID_RIGHT, lower: LOWER_RIGHT, innerCorner: 362, outerCorner: 263 }
+        ];
+
+        eyePairs.forEach(({ lash, lid, lower, innerCorner, outerCorner }) => {
+          const lashPts  = lash.map(i  => ({x:faceLandmarks[i].x*W, y:faceLandmarks[i].y*H}));
+          const lidPts   = lid.map(i   => ({x:faceLandmarks[i].x*W, y:faceLandmarks[i].y*H}));
+          const lowerPts = lower.map(i => ({x:faceLandmarks[i].x*W, y:faceLandmarks[i].y*H}));
+
+          const lashMinY = Math.min(...lashPts.map(p=>p.y));
+          const lidMinY  = Math.min(...lidPts.map(p=>p.y));
+          const lidH     = lashMinY - lidMinY;
+          const lashCX   = lashPts.reduce((s,p)=>s+p.x,0)/lashPts.length;
+          const lashW    = Math.max(...lashPts.map(p=>p.x)) - Math.min(...lashPts.map(p=>p.x));
+          const lashMaxY = Math.max(...lashPts.map(p=>p.y));
+
+          // 1. Shimmer lid: tight ellipse sitting just above lash line
+          ctx.save();
+          ctx.filter = `blur(${Math.round(lidH*0.2)}px)`;
+          ctx.beginPath();
+          ctx.ellipse(lashCX, lashMinY - lidH*0.25, lashW*0.48, lidH*0.38, 0, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(${r},${g},${b},${eyeAlpha*0.85})`;
+          ctx.fill();
+          ctx.restore();
+
+          // 2. Individual upper lash strokes — short radiating lines from lash line
+          const lashCount = 12;
+          const lashLen = lidH * 0.9;
+          ctx.save();
+          ctx.strokeStyle = `rgba(30,20,15,${Math.min(eyeAlpha*1.4, 0.85)})`;
+          ctx.lineWidth = Math.max(1, W*0.0015);
+          ctx.lineCap = 'round';
+          const lxMin = Math.min(...lashPts.map(p=>p.x));
+          const lxMax = Math.max(...lashPts.map(p=>p.x));
+          for (let i = 0; i < lashCount; i++) {
+            const t = i / (lashCount - 1);
+            const baseX = lxMin + (lxMax - lxMin) * t;
+            // Interpolate Y along lash line
+            const lashY = lashPts.reduce((best, p) => {
+              return Math.abs(p.x - baseX) < Math.abs(best.x - baseX) ? p : best;
+            }, lashPts[0]).y;
+            // Lashes curve upward and outward slightly
+            const curve = Math.sin(t * Math.PI) * lashLen * 0.3;
+            const angle = -Math.PI/2 + (t - 0.5) * 0.6; // fan outward
+            ctx.beginPath();
+            ctx.moveTo(baseX, lashY);
+            ctx.quadraticCurveTo(
+              baseX + Math.cos(angle) * lashLen * 0.4 + curve,
+              lashY + Math.sin(angle) * lashLen * 0.6,
+              baseX + Math.cos(angle) * lashLen * 0.7 + curve,
+              lashY + Math.sin(angle) * lashLen
+            );
+            ctx.stroke();
+          }
+          ctx.restore();
+
+          // 3. Lower lash strokes (shorter, downward)
+          const lowerLashCount = 8;
+          const lowerLashLen = lidH * 0.55;
+          const lowerMinY = Math.min(...lowerPts.map(p=>p.y));
+          const lowerMaxY = Math.max(...lowerPts.map(p=>p.y));
+          const lowerLashY = lowerMinY + (lowerMaxY - lowerMinY) * 0.3;
+          ctx.save();
+          ctx.strokeStyle = `rgba(30,20,15,${Math.min(eyeAlpha*1.0, 0.6)})`;
+          ctx.lineWidth = Math.max(0.8, W*0.001);
+          ctx.lineCap = 'round';
+          for (let i = 0; i < lowerLashCount; i++) {
+            const t = i / (lowerLashCount - 1);
+            const baseX = lxMin + (lxMax - lxMin) * t;
+            const angle = Math.PI/2 + (t - 0.5) * 0.4;
+            ctx.beginPath();
+            ctx.moveTo(baseX, lowerLashY);
+            ctx.lineTo(
+              baseX + Math.cos(angle) * lowerLashLen * 0.5,
+              lowerLashY + Math.sin(angle) * lowerLashLen
+            );
+            ctx.stroke();
+          }
+          ctx.restore();
+
+          // 4. Aegyo-sal: bright pearl/white highlight strip directly under lower lash
+          // This is the defining Korean feature — makes under-eye look plump
+          const aegyoCX   = lashCX;
+          const aegyoY    = lowerLashY + lowerLashLen * 0.3;
+          const aegyoRX   = lashW * 0.42;
+          const aegyoRY   = lidH  * 0.22;
+          // White/pearl base
+          ctx.save();
+          ctx.filter = `blur(${Math.round(lidH*0.25)}px)`;
+          ctx.beginPath();
+          ctx.ellipse(aegyoCX, aegyoY, aegyoRX, aegyoRY, 0, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(255,240,235,${eyeAlpha*0.75})`;
+          ctx.fill();
+          ctx.restore();
+          // Subtle pink shimmer on top of white
+          ctx.save();
+          ctx.filter = `blur(${Math.round(lidH*0.15)}px)`;
+          ctx.beginPath();
+          ctx.ellipse(aegyoCX, aegyoY - aegyoRY*0.1, aegyoRX*0.7, aegyoRY*0.6, 0, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(255,200,210,${eyeAlpha*0.45})`;
+          ctx.fill();
+          ctx.restore();
+        });
+      } else {
+        // Standard eyeshadow: lid area ABOVE the eye + under-eye blend for smokey
+        [[LID_LEFT, LASH_LEFT, LOWER_LEFT],[LID_RIGHT, LASH_RIGHT, LOWER_RIGHT]].forEach(([lid, lash, lower]) => {
+          const lidPts   = lid.map(i   => ({x:faceLandmarks[i].x*W, y:faceLandmarks[i].y*H}));
+          const lashPts  = lash.map(i  => ({x:faceLandmarks[i].x*W, y:faceLandmarks[i].y*H}));
+          const lowerPts = lower.map(i => ({x:faceLandmarks[i].x*W, y:faceLandmarks[i].y*H}));
+
+          // Key measurements
+          const lashTopY  = Math.min(...lashPts.map(p=>p.y));  // top of lash line = bottom of lid
+          const lidTopY   = Math.min(...lidPts.map(p=>p.y));   // top of lid crease
+          const lidH      = lashTopY - lidTopY;                 // actual lid height
+          const lashCX    = lashPts.reduce((s,p)=>s+p.x,0)/lashPts.length;
+          const lashW     = Math.max(...lashPts.map(p=>p.x)) - Math.min(...lashPts.map(p=>p.x));
+
+          // ── Upper lid: ellipse anchored just ABOVE the lash line ──
+          // Center it at lash level, extend upward only
+          const lidCY  = lashTopY - lidH * 0.35;  // center sits above lash line
+          const lidRX  = lashW * 0.52;
+          const lidRY  = lidH * 0.55;
+
+          ctx.save();
+          ctx.filter = `blur(${Math.round(lidH * 0.3)}px)`;
+          // Clip to upper half only so it can't bleed downward onto the eye
+          ctx.beginPath();
+          ctx.rect(lashCX - lidRX*1.5, lidTopY - lidH*0.3, lidRX*3, lidH*1.4);
+          ctx.clip();
+          ctx.beginPath();
+          ctx.ellipse(lashCX, lidCY, lidRX, lidRY, 0, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(${r},${g},${b},${eyeAlpha})`;
+          ctx.fill();
+          ctx.restore();
+
+          // ── Under-eye shadow (smokey blend below lower lash line) ──
+          const isSmokeyStyle = ['smokey','glam','bridal','editorial'].includes(activePresetId);
+          if (isSmokeyStyle) {
+            const lowerMaxY = Math.max(...lowerPts.map(p=>p.y));
+            const lowerCX   = lowerPts.reduce((s,p)=>s+p.x,0)/lowerPts.length;
+            const underRX   = lashW * 0.45;
+            const underRY   = lidH  * 0.35;
+            ctx.save();
+            ctx.filter = `blur(${Math.round(lidH * 0.4)}px)`;
+            ctx.beginPath();
+            ctx.ellipse(lowerCX, lowerMaxY + underRY*0.5, underRX, underRY, 0, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(${r},${g},${b},${eyeAlpha * 0.65})`;
+            ctx.fill();
+            ctx.restore();
+          }
+        });
+      }
+    }
+
+    // ── CONTOUR ──
+    if (contourOn) {
+      const {r,g,b}=hexToRgb('#5C3D2A');
+      [LM.leftJaw, LM.rightJaw].forEach(idxs => {
+        const pts = getPoints(idxs,W,H);
+        if (pts) fillPoly(ctx,pts,r,g,b,contourAlpha,W*0.025);
+      });
+    }
+
+    // ── LIPS ──
+    if (lipOn) {
+      const {r,g,b}=hexToRgb(chosenLipHex);
+      const outerPts = getPoints(LM.outerLip,W,H);
+      const innerPts = getPoints(LM.innerLip,W,H);
+
+      if (outerPts) {
+        if (isKorean) {
+          // Korean gradient lip: full color in center, fades to transparent at corners
+          // Draw outer shape first
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(outerPts[0].x, outerPts[0].y);
+          for(let i=1;i<outerPts.length;i++){
+            const p0=outerPts[i-1],p1=outerPts[i];
+            ctx.quadraticCurveTo(p0.x,p0.y,(p0.x+p1.x)/2,(p0.y+p1.y)/2);
+          }
+          ctx.closePath();
+
+          // Find lip bounding box for gradient
+          const lipXs = outerPts.map(p=>p.x), lipYs = outerPts.map(p=>p.y);
+          const lipCX = (Math.min(...lipXs)+Math.max(...lipXs))/2;
+          const lipCY = (Math.min(...lipYs)+Math.max(...lipYs))/2;
+          const lipW  = Math.max(...lipXs)-Math.min(...lipXs);
+          // Radial gradient: opaque center, transparent edges
+          const grad = ctx.createRadialGradient(lipCX,lipCY,0, lipCX,lipCY,lipW*0.5);
+          grad.addColorStop(0,   `rgba(${r},${g},${b},${lipAlpha})`);
+          grad.addColorStop(0.5, `rgba(${r},${g},${b},${lipAlpha*0.7})`);
+          grad.addColorStop(1,   `rgba(${r},${g},${b},0.05)`);
+          ctx.fillStyle = grad;
+          ctx.fill();
+          ctx.restore();
+        } else {
+          // Standard: solid fill
+          fillPoly(ctx,outerPts,r,g,b,lipAlpha,1);
+        }
+
+        // Cut out mouth opening for both styles
+        if (innerPts) {
+          ctx.save();
+          ctx.globalCompositeOperation='destination-out';
+          ctx.beginPath();
+          ctx.moveTo(innerPts[0].x,innerPts[0].y);
+          for(let i=1;i<innerPts.length;i++){
+            const p0=innerPts[i-1],p1=innerPts[i];
+            ctx.quadraticCurveTo(p0.x,p0.y,(p0.x+p1.x)/2,(p0.y+p1.y)/2);
+          }
+          ctx.closePath();
+          ctx.fillStyle='rgba(0,0,0,1)';
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+    }
+
+  } else {
+    // ── FALLBACK estimates ──
+    const cx=W/2;
+    if (blushOn) {
+      const {r,g,b}=hexToRgb(chosenBlushHex);
+      drawBlob(ctx,cx-W*0.22,H*0.48,W*0.1,H*0.07,r,g,b,blushAlpha);
+      drawBlob(ctx,cx+W*0.22,H*0.48,W*0.1,H*0.07,r,g,b,blushAlpha);
+    }
+    if (eyeOn) {
+      const {r,g,b}=hexToRgb(chosenEyeHex);
+      // Fallback: thin liner strip
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx-W*0.17,H*0.375); ctx.quadraticCurveTo(cx,H*0.36,cx+W*0.17,H*0.375);
+      ctx.strokeStyle=`rgba(${r},${g},${b},${eyeAlpha})`; ctx.lineWidth=H*0.006; ctx.lineCap='round'; ctx.stroke();
+      ctx.restore();
+    }
+    if (contourOn) {
+      const {r,g,b}=hexToRgb('#5C3D2A');
+      drawBlob(ctx,cx-W*0.27,H*0.55,W*0.05,H*0.1,r,g,b,contourAlpha);
+      drawBlob(ctx,cx+W*0.27,H*0.55,W*0.05,H*0.1,r,g,b,contourAlpha);
+    }
+    if (lipOn) {
+      const {r,g,b}=hexToRgb(chosenLipHex);
+      const lx=cx, ly=H*0.635, lw=W*0.1, lh=H*0.022;
+      ctx.save();
+      ctx.beginPath(); ctx.ellipse(lx,ly-lh*0.5,lw,lh,0,0,Math.PI*2);
+      ctx.fillStyle=`rgba(${r},${g},${b},${lipAlpha})`; ctx.fill();
+      ctx.beginPath(); ctx.ellipse(lx,ly+lh*0.9,lw*0.85,lh*1.3,0,0,Math.PI*2);
+      ctx.fillStyle=`rgba(${r},${g},${b},${lipAlpha})`; ctx.fill();
+      ctx.restore();
+    }
+  }
+  setStatus('Adjust sliders or colors to fine-tune');
+}
+</script>
+</body>
+</html>
